@@ -1,0 +1,573 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Real-time Stock Market Analytics Pipeline - Complete Stack with CloudFormation'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: stock-analytics
+    Description: Name of the application
+  Environment:
+    Type: String
+    Default: devl
+    AllowedValues: [devl, test, prod]
+    Description: Environment name
+
+  # StockDataStreamName:
+  #   Type: String
+  #   Default: stock-data-stream
+  #   Description: Name of the Kinesis Data Stream
+
+  # StockDataTableName:
+  #   Type: String
+  #   Default: processed-stock-data
+  #   Description: Name of the DynamoDB table
+
+  RawStockDataBucketBaseName:
+    Type: String
+    Description: Name of the S3 bucket for raw stock data (must be globally unique)
+
+Resources:
+  # ============================================================================
+  # S3 Bucket for Raw Stock Data
+  # ============================================================================
+  RawStockDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-${RawStockDataBucketBaseName}-${AWS::AccountId}-${AWS::Region}-${Environment}'
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ProjectName
+          Value: !Ref ProjectName
+
+  # ============================================================================
+  # DynamoDB Table for Processed Stock Data
+  # ============================================================================
+  # ProcessedStockDataTable:
+  #   Type: AWS::DynamoDB::Table
+  #   Properties:
+  #     TableName: !Ref StockDataTableName
+  #     BillingMode: PAY_PER_REQUEST
+  #     AttributeDefinitions:
+  #       - AttributeName: ticker
+  #         AttributeType: S
+  #       - AttributeName: timestamp
+  #         AttributeType: N
+  #     KeySchema:
+  #       - AttributeName: ticker
+  #         KeyType: HASH
+  #       - AttributeName: timestamp
+  #         KeyType: RANGE
+  #     StreamSpecification:
+  #       StreamViewType: NEW_AND_OLD_IMAGES
+  #     TimeToLiveSpecification:
+  #       AttributeName: ttl
+  #       Enabled: true
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: Project
+  #         Value: StockAnalyticsPipeline
+
+  # # ============================================================================
+  # # Kinesis Data Stream
+  # # ============================================================================
+  # StockDataStream:
+  #   Type: AWS::Kinesis::Stream
+  #   Properties:
+  #     Name: !Ref StockDataStreamName
+  #     StreamModeDetails:
+  #       StreamMode: ON_DEMAND
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: Project
+  #         Value: StockAnalyticsPipeline
+
+  # # ============================================================================
+  # # SNS Topic for Stock Trend Alerts
+  # # ============================================================================
+  # StockTrendAlertTopic:
+  #   Type: AWS::SNS::Topic
+  #   Properties:
+  #     TopicName: !Sub 'stock-trend-alerts-${Environment}'
+  #     DisplayName: Stock Trend Alerts
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: Project
+  #         Value: StockAnalyticsPipeline
+
+  # # ============================================================================
+  # # CloudWatch Log Group for Lambda Functions
+  # # ============================================================================
+  # LambdaLogGroup:
+  #   Type: AWS::Logs::LogGroup
+  #   Properties:
+  #     LogGroupName: !Sub '/aws/lambda/stock-analytics-${Environment}'
+  #     RetentionInDays: 30
+
+  # # ============================================================================
+  # # IAM Roles with Least Privilege Principle
+  # # ============================================================================
+
+  # # ---- Producer Lambda IAM Role ----
+  # ProducerLambdaRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub 'producer-lambda-role-${Environment}'
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  #     Policies:
+  #       - PolicyName: KinesisPutRecords
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - kinesis:PutRecord
+  #                 - kinesis:PutRecords
+  #               Resource: !GetAtt StockDataStream.Arn
+  #       - PolicyName: CloudWatchLogs
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stock-analytics-*'
+
+  # # ---- Processor Lambda IAM Role ----
+  # ProcessorLambdaRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub 'processor-lambda-role-${Environment}'
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  #     Policies:
+  #       - PolicyName: KinesisStreamRead
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - kinesis:GetRecords
+  #                 - kinesis:GetShardIterator
+  #                 - kinesis:DescribeStream
+  #                 - kinesis:ListStreams
+  #                 - kinesis:ListShards
+  #                 - kinesis:ListStreamConsumers
+  #               Resource: !GetAtt StockDataStream.Arn
+  #       - PolicyName: DynamoDBWriteAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - dynamodb:PutItem
+  #                 - dynamodb:UpdateItem
+  #               Resource: !GetAtt ProcessedStockDataTable.Arn
+  #       - PolicyName: S3WriteAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - s3:PutObject
+  #                 - s3:GetObject
+  #               Resource: !Sub '${RawStockDataBucket.Arn}/*'
+  #       - PolicyName: SNSPublish
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - sns:Publish
+  #               Resource: !Ref StockTrendAlertTopic
+  #       - PolicyName: CloudWatchLogs
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stock-analytics-*'
+
+  # # ---- Alerter Lambda IAM Role ----
+  # AlerterLambdaRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     RoleName: !Sub 'alerter-lambda-role-${Environment}'
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service: lambda.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  #     Policies:
+  #       - PolicyName: DynamoDBReadAccess
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - dynamodb:GetItem
+  #                 - dynamodb:Query
+  #                 - dynamodb:Scan
+  #               Resource: !GetAtt ProcessedStockDataTable.Arn
+  #       - PolicyName: SNSPublish
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - sns:Publish
+  #               Resource: !Ref StockTrendAlertTopic
+  #       - PolicyName: CloudWatchLogs
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/stock-analytics-*'
+
+  # # ============================================================================
+  # # Lambda Functions (Placeholder - will be updated with actual code)
+  # # ============================================================================
+
+  # # ---- Producer Lambda Function ----
+  # ProducerLambdaFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     FunctionName: !Sub 'stock-data-producer-${Environment}'
+  #     Runtime: python3.11
+  #     Role: !GetAtt ProducerLambdaRole.Arn
+  #     Timeout: 60
+  #     MemorySize: 256
+  #     Environment:
+  #       Variables:
+  #         KINESIS_STREAM_NAME: !Ref StockDataStream
+  #         ENVIRONMENT: !Ref Environment
+  #     Code:
+  #       ZipFile: |
+  #         import json
+  #         import boto3
+  #         import os
+  #         from datetime import datetime
+
+  #         kinesis = boto3.client('kinesis')
+
+  #         def lambda_handler(event, context):
+  #             stream_name = os.environ['KINESIS_STREAM_NAME']
+
+  #             # Placeholder: Replace with actual yfinance integration
+  #             stock_data = {
+  #                 'ticker': 'AAPL',
+  #                 'price': 150.25,
+  #                 'timestamp': int(datetime.now().timestamp()),
+  #                 'volume': 1000000
+  #             }
+
+  #             try:
+  #                 response = kinesis.put_record(
+  #                     StreamName=stream_name,
+  #                     Data=json.dumps(stock_data),
+  #                     PartitionKey=stock_data['ticker']
+  #                 )
+
+  #                 return {
+  #                     'statusCode': 200,
+  #                     'body': json.dumps('Data sent to Kinesis successfully')
+  #                 }
+  #             except Exception as e:
+  #                 print(f'Error: {str(e)}')
+  #                 return {
+  #                     'statusCode': 500,
+  #                     'body': json.dumps(f'Error: {str(e)}')
+  #                 }
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: Project
+  #         Value: StockAnalyticsPipeline
+
+  # # ---- Processor Lambda Function ----
+  # ProcessorLambdaFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     FunctionName: !Sub 'stock-data-processor-${Environment}'
+  #     Runtime: python3.11
+  #     Role: !GetAtt ProcessorLambdaRole.Arn
+  #     Timeout: 300
+  #     MemorySize: 512
+  #     Environment:
+  #       Variables:
+  #         DYNAMODB_TABLE: !Ref ProcessedStockDataTable
+  #         S3_BUCKET: !Ref RawStockDataBucket
+  #         SNS_TOPIC_ARN: !Ref StockTrendAlertTopic
+  #         ENVIRONMENT: !Ref Environment
+  #     Code:
+  #       ZipFile: |
+  #         import json
+  #         import boto3
+  #         import os
+  #         import base64
+  #         from datetime import datetime
+
+  #         dynamodb = boto3.resource('dynamodb')
+  #         s3 = boto3.client('s3')
+  #         sns = boto3.client('sns')
+
+  #         table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+
+  #         def lambda_handler(event, context):
+  #             try:
+  #                 for record in event['Records']:
+  #                     # Decode Kinesis data
+  #                     payload = json.loads(base64.b64decode(record['kinesis']['data']))
+
+  #                     # Process data (placeholder logic)
+  #                     processed_data = process_stock_data(payload)
+
+  #                     # Store in DynamoDB
+  #                     store_in_dynamodb(processed_data)
+
+  #                     # Store in S3
+  #                     store_in_s3(payload)
+
+  #                     # Check for anomalies and send alerts
+  #                     check_and_alert(processed_data)
+
+  #                 return {
+  #                     'statusCode': 200,
+  #                     'body': json.dumps('Data processed successfully')
+  #                 }
+  #             except Exception as e:
+  #                 print(f'Error: {str(e)}')
+  #                 return {
+  #                     'statusCode': 500,
+  #                     'body': json.dumps(f'Error: {str(e)}')
+  #                 }
+
+  #         def process_stock_data(data):
+  #             return {
+  #                 'ticker': data.get('ticker'),
+  #                 'price': data.get('price'),
+  #                 'timestamp': data.get('timestamp'),
+  #                 'processed_at': int(datetime.now().timestamp()),
+  #                 'volume': data.get('volume'),
+  #                 'ttl': int(datetime.now().timestamp()) + (7 * 24 * 60 * 60)  # 7 days
+  #             }
+
+  #         def store_in_dynamodb(data):
+  #             table.put_item(Item=data)
+
+  #         def store_in_s3(data):
+  #             s3.put_object(
+  #                 Bucket=os.environ['S3_BUCKET'],
+  #                 Key=f"raw-stock-data/{datetime.now().strftime('%Y/%m/%d')}/{data['ticker']}-{data['timestamp']}.json",
+  #                 Body=json.dumps(data)
+  #             )
+
+  #         def check_and_alert(data):
+  #             # Placeholder: Implement anomaly detection logic
+  #             if data.get('price', 0) > 150:  # Example threshold
+  #                 sns.publish(
+  #                     TopicArn=os.environ['SNS_TOPIC_ARN'],
+  #                     Subject=f"Stock Alert: {data['ticker']}",
+  #                     Message=f"Price for {data['ticker']} is {data['price']}"
+  #                 )
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: Project
+  #         Value: StockAnalyticsPipeline
+
+  # # ---- Event Source Mapping: Kinesis to Processor Lambda ----
+  # ProcessorEventSourceMapping:
+  #   Type: AWS::Lambda::EventSourceMapping
+  #   Properties:
+  #     EventSourceArn: !GetAtt StockDataStream.Arn
+  #     FunctionName: !Ref ProcessorLambdaFunction
+  #     Enabled: true
+  #     StartingPosition: LATEST
+  #     BatchSize: 100
+  #     MaximumBatchingWindowInSeconds: 5
+  #     ParallelizationFactor: 10
+
+  # # ---- Alerter Lambda Function ----
+  # AlerterLambdaFunction:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     FunctionName: !Sub 'stock-trend-alerter-${Environment}'
+  #     Runtime: python3.11
+  #     Role: !GetAtt AlerterLambdaRole.Arn
+  #     Timeout: 60
+  #     MemorySize: 256
+  #     Environment:
+  #       Variables:
+  #         DYNAMODB_TABLE: !Ref ProcessedStockDataTable
+  #         SNS_TOPIC_ARN: !Ref StockTrendAlertTopic
+  #         ENVIRONMENT: !Ref Environment
+  #     Code:
+  #       ZipFile: |
+  #         import json
+  #         import boto3
+  #         import os
+  #         from datetime import datetime, timedelta
+
+  #         dynamodb = boto3.resource('dynamodb')
+  #         sns = boto3.client('sns')
+
+  #         table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+
+  #         def lambda_handler(event, context):
+  #             try:
+  #                 # Query DynamoDB for recent stock data
+  #                 response = table.scan(
+  #                     FilterExpression='#ts > :one_hour_ago',
+  #                     ExpressionAttributeNames={'#ts': 'timestamp'},
+  #                     ExpressionAttributeValues={
+  #                         ':one_hour_ago': int((datetime.now() - timedelta(hours=1)).timestamp())
+  #                     }
+  #                 )
+
+  #                 # Analyze trends and send alerts
+  #                 for item in response.get('Items', []):
+  #                     # Placeholder: Implement trend analysis logic
+  #                     pass
+
+  #                 return {
+  #                     'statusCode': 200,
+  #                     'body': json.dumps('Alerts processed successfully')
+  #                 }
+  #             except Exception as e:
+  #                 print(f'Error: {str(e)}')
+  #                 return {
+  #                     'statusCode': 500,
+  #                     'body': json.dumps(f'Error: {str(e)}')
+  #                 }
+  #     Tags:
+  #       - Key: Environment
+  #         Value: !Ref Environment
+  #       - Key: Project
+  #         Value: StockAnalyticsPipeline
+
+  # # ============================================================================
+  # # CloudWatch Alarms
+  # # ============================================================================
+
+  # KinesisIteratorAgeAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub 'kinesis-high-iterator-age-${Environment}'
+  #     AlarmDescription: Alert when Kinesis iterator age is high
+  #     MetricName: GetRecords.IteratorAgeMilliseconds
+  #     Namespace: AWS/Kinesis
+  #     Statistic: Maximum
+  #     Period: 60
+  #     EvaluationPeriods: 2
+  #     Threshold: 60000
+  #     ComparisonOperator: GreaterThanThreshold
+  #     Dimensions:
+  #       - Name: StreamName
+  #         Value: !Ref StockDataStream
+
+  # ProcessorLambdaErrorAlarm:
+  #   Type: AWS::CloudWatch::Alarm
+  #   Properties:
+  #     AlarmName: !Sub 'processor-lambda-errors-${Environment}'
+  #     AlarmDescription: Alert when Processor Lambda has errors
+  #     MetricName: Errors
+  #     Namespace: AWS/Lambda
+  #     Statistic: Sum
+  #     Period: 300
+  #     EvaluationPeriods: 1
+  #     Threshold: 5
+  #     ComparisonOperator: GreaterThanOrEqualToThreshold
+  #     Dimensions:
+  #       - Name: FunctionName
+  #         Value: !Ref ProcessorLambdaFunction
+
+# ============================================================================
+# Outputs
+# ============================================================================
+Outputs:
+  RawStockDataBucketName:
+    Description: Name of the S3 bucket
+    Value: !Ref RawStockDataBucket
+
+  # StockDataStreamArn:
+  #   Description: ARN of the Kinesis Data Stream
+  #   Value: !GetAtt StockDataStream.Arn
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-StockDataStreamArn'
+
+  # ProcessedStockDataTableArn:
+  #   Description: ARN of the DynamoDB table
+  #   Value: !GetAtt ProcessedStockDataTable.Arn
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-ProcessedStockDataTableArn'
+
+
+
+  # StockTrendAlertTopicArn:
+  #   Description: ARN of the SNS topic
+  #   Value: !Ref StockTrendAlertTopic
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-StockTrendAlertTopicArn'
+
+  # ProducerLambdaFunctionArn:
+  #   Description: ARN of the Producer Lambda function
+  #   Value: !GetAtt ProducerLambdaFunction.Arn
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-ProducerLambdaFunctionArn'
+
+  # ProcessorLambdaFunctionArn:
+  #   Description: ARN of the Processor Lambda function
+  #   Value: !GetAtt ProcessorLambdaFunction.Arn
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-ProcessorLambdaFunctionArn'
+
+  # AlerterLambdaFunctionArn:
+  #   Description: ARN of the Alerter Lambda function
+  #   Value: !GetAtt AlerterLambdaFunction.Arn
+  #   Export:
+  #     Name: !Sub '${AWS::StackName}-AlerterLambdaFunctionArn'

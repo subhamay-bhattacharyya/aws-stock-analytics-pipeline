@@ -1,6 +1,19 @@
-# CloudFormation S3 Template Repository
+# Real-time stock market data analytics pipeline built on AWS
 
-![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)&nbsp;![Commit Activity](https://img.shields.io/github/commit-activity/t/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![Release Date](https://img.shields.io/github/release-date/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![Repo Size](https://img.shields.io/github/repo-size/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![File Count](https://img.shields.io/github/directory-file-count/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![Top Language](https://img.shields.io/github/languages/top/subhamay-bhattacharyya-cfn/cloudformation-template)&nbsp;![Status](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bsubhamay/0d518b3ce02fae859c9a3c4d3bb6b94d/raw/cloudformation-template.json)
+<!-- Row 1: Status - Most Important -->
+[![Release](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/actions/workflows/release.yaml/badge.svg)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline)&nbsp;[![GitHub Action](https://img.shields.io/badge/GitHub-Action-blue?logo=github)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline)&nbsp;[![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/issues)&nbsp;[![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/commits)
+
+<!-- Row 2: Code Quality -->
+[![Top Language](https://img.shields.io/github/languages/top/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline)&nbsp;[![Commits](https://img.shields.io/github/commit-activity/t/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/commits)
+
+<!-- Row 3: Tech Stack -->
+[![CloudFormation](https://img.shields.io/badge/CloudFormation-IaC-ff9900?logo=amazon&logoColor=white)](https://aws.amazon.com/cloudformation/)&nbsp;[![Built with Claude Code](https://img.shields.io/badge/Built_with-Claude_Code-D97757?logo=anthropic&logoColor=white)](https://claude.ai/)
+
+<!-- Row 4: Repository Info -->
+[![Files](https://img.shields.io/github/directory-file-count/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline)&nbsp;[![Repo Size](https://img.shields.io/github/repo-size/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline)&nbsp;[![Release Date](https://img.shields.io/github/release-date/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/releases)
+
+<!-- Row 5: Custom Metrics -->
+[![Custom Endpoint](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bsubhamay/07e4accbf35b23c2069188b1dd56e2b5/raw/aws-stock-analytics-pipeline.json?)](https://gist.github.com/bsubhamay/07e4accbf35b23c2069188b1dd56e2b5)
 
 This repository contains nested CloudFormation templates for deploying S3 buckets with security best practices and optional policy enforcement.
 

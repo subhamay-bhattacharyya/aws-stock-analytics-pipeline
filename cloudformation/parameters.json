@@ -1,14 +1,14 @@
 [
   {
-    "ParameterKey": "BucketBaseName",
-    "ParameterValue": "cfn-bucket"
+    "ParameterKey": "RawStockDataBucketBaseName",
+    "ParameterValue": "raw-data"
   },
   {
     "ParameterKey": "ProjectName",
-    "ParameterValue": "myproject"
+    "ParameterValue": "stock-analytics"
   },
   {
-    "ParameterKey": "environment",
+    "ParameterKey": "Environment",
     "ParameterValue": "devl"
   },
   {
