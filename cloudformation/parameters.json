@@ -1,18 +1,5 @@
-[
-  {
-    "ParameterKey": "RawStockDataBucketBaseName",
-    "ParameterValue": "raw-data"
-  },
-  {
-    "ParameterKey": "ProjectName",
-    "ParameterValue": "stock-analytics"
-  },
-  {
-    "ParameterKey": "Environment",
-    "ParameterValue": "devl"
-  },
-  {
-    "ParameterKey": "CiSuffix",
-    "ParameterValue": ""
-  }
-]
+{
+  "Environment": "devl",
+  "KmsKey": "SB-KMS",
+  "CiSuffix": ""
+}
