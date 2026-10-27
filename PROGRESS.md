@@ -8,9 +8,9 @@
 - [x] AWS Lambda Function with boilerplate code.
 - [x] AWS DynamoDB.
 - [x] Lambda invoke permission.
+- [x] AWS Kinesis Data Stream.
 
 ## Pending 🏗️
 
-- [ ] AWS Kinesis Data Stream.
 - [ ] Implement Lambda Code.
 - [ ] AWS Glue Data Catalog.

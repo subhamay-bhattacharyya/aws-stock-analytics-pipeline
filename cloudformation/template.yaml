@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 
 Description: |
   Root CloudFormation template for AWS Receipt Processing System. Creates:
+  - Kinesis Data Stream for receipt events
   - S3 bucket for receipt storage
   - DynamoDB Receipts table with event streams and point-in-time recovery
   - CloudWatch Logs log group for the Lambda function
@@ -195,7 +196,37 @@ Conditions:
   # HasNotificationLambdaArn: !Not [!Equals [!Ref NotificationLambdaArn, ""]]
 
 Resources:
-  S3BucketNestedStack:
+  KinesisStream:
+    Type: AWS::CloudFormation::Stack
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "Invokes the nested Kinesis Data Stream CloudFormation template to create a stream with configurable capacity mode, retention period and KMS encryption"
+        must:
+          - "Nested template must be accessible at the specified S3 location"
+          - "IAM principal must have s3:GetObject permission on the template S3 bucket"
+          - "CloudFormation service must have permission to create Kinesis streams and use the KMS key"
+    Properties:
+      TemplateURL: !Sub "https://${NestedStacksS3BucketName}.s3.us-east-1.amazonaws.com/cfn-nested-aws-kinesis-data-stream/template.yaml"
+      Parameters:
+        ProjectName: !Ref ProjectName
+        StreamBaseName: "stock-market-data"
+        environment: !Ref Environment
+        CiSuffix: !Ref CiSuffix
+        KmsKeyId: !If [HasKmsKey, !Sub "alias/${KmsKey}", ""]
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Component
+          Value: KinesisStream
+        - Key: ManagedBy
+          Value: RootStack
+      TimeoutInMinutes: 5
+
+  S3Bucket:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -221,7 +252,7 @@ Resources:
         - Key: NestedStackPurpose
           Value: S3BucketCreation
 
-  ReceiptsDynamoDBNestedStack:
+  DynamoDB:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -257,7 +288,7 @@ Resources:
           Value: RootStack
       TimeoutInMinutes: 10
 
-  LambdaCWLogGroupNestedStack:
+  LambdaCWLogGroup:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -291,7 +322,7 @@ Resources:
           Value: RootStack
       TimeoutInMinutes: 5
 
-  LambdaIAMRoleNestedStack:
+  LambdaIAMRole:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -313,8 +344,8 @@ Resources:
         EnableS3ReadWritePolicy: "true"
         EnableDynamoDBReadWritePolicy: "true"
         EnableKMSPolicy: "true"
-        DynamoDBTableArn: !GetAtt ReceiptsDynamoDBNestedStack.Outputs.TableArn
-        S3BucketArn: !GetAtt S3BucketNestedStack.Outputs.S3BucketArn
+        DynamoDBTableArn: !GetAtt DynamoDB.Outputs.TableArn
+        S3BucketArn: !GetAtt S3Bucket.Outputs.S3BucketArn
         LambdaBasicExecutionLogGroupArn: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${LambdaBaseName}-${Environment}-${AWS::Region}:*"
         CiSuffix: !Ref CiSuffix
 
@@ -329,12 +360,12 @@ Resources:
           Value: RootStack
       TimeoutInMinutes: 5
 
-  LambdaFunctionNestedStack:
+  LambdaFunction:
     Type: AWS::CloudFormation::Stack
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     DependsOn:
-      - LambdaCWLogGroupNestedStack
+      - LambdaCWLogGroup
     Metadata:
       com.aws.cloudformation.Context:
         why: "Invokes the nested Lambda function CloudFormation template to create the receipt processor function using the IAM execution role, log group, and DynamoDB table created by the other nested stacks"
@@ -352,9 +383,9 @@ Resources:
         Handler: "index.lambda_handler"
         MemorySize: "256"
         Timeout: "60"
-        IAMRoleArn: !GetAtt LambdaIAMRoleNestedStack.Outputs.RoleArn
+        IAMRoleArn: !GetAtt LambdaIAMRole.Outputs.RoleArn
         LambdaLogGroup: !Sub "/aws/lambda/${ProjectName}-${LambdaBaseName}-${Environment}-${AWS::Region}"
-        DynamoDBTableName: !GetAtt ReceiptsDynamoDBNestedStack.Outputs.TableName
+        DynamoDBTableName: !GetAtt DynamoDB.Outputs.TableName
         CiSuffix: !Ref CiSuffix
       Tags:
         - Key: Environment
@@ -371,10 +402,10 @@ Resources:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !GetAtt LambdaFunctionNestedStack.Outputs.FunctionArn
+      FunctionName: !GetAtt LambdaFunction.Outputs.FunctionArn
       Principal: s3.amazonaws.com
       # Built from the name, not !GetAtt of the bucket, to avoid a circular dependency
-      SourceArn: !GetAtt S3BucketNestedStack.Outputs.S3BucketArn
+      SourceArn: !GetAtt S3Bucket.Outputs.S3BucketArn
       SourceAccount: !Ref AWS::AccountId
 
   # S3BucketNotification:
@@ -388,48 +419,52 @@ Resources:
   #       why: "Configures the S3 bucket to invoke the receipt processor Lambda function on object creation, optionally filtered by key prefix. Custom resource because CloudFormation has no standalone bucket notification resource and the bucket is owned by the S3 nested stack."
   #   Properties:
   #     ServiceToken: !Ref NotificationLambdaArn
-  #     BucketName: !GetAtt S3BucketNestedStack.Outputs.S3BucketName
-  #     LambdaArn: !GetAtt LambdaFunctionNestedStack.Outputs.FunctionArn
+  #     BucketName: !GetAtt S3Bucket.Outputs.S3BucketName
+  #     LambdaArn: !GetAtt LambdaFunction.Outputs.FunctionArn
   #     KeyPrefix: !Ref KeyPrefix
 
 Outputs:
   NestedStackId:
     Description: "ID of the nested stack"
-    Value: !Ref S3BucketNestedStack
+    Value: !Ref LambdaFunction
 
   S3BucketName:
     Description: "Name of the S3 bucket created by the nested stack"
-    Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketName
+    Value: !GetAtt S3Bucket.Outputs.S3BucketName
 
   S3BucketArn:
     Description: "ARN of the S3 bucket created by the nested stack"
-    Value: !GetAtt S3BucketNestedStack.Outputs.S3BucketArn
+    Value: !GetAtt S3Bucket.Outputs.S3BucketArn
 
   NestedStackOutputs:
     Description: "All outputs from the nested stack"
     Value: !Sub |
-      BucketName: ${S3BucketNestedStack.Outputs.S3BucketName}
-      BucketArn: ${S3BucketNestedStack.Outputs.S3BucketArn}
+      BucketName: ${S3Bucket.Outputs.S3BucketName}
+      BucketArn: ${S3Bucket.Outputs.S3BucketArn}
 
-  ReceiptsDynamoDBTableName:
+  DynamoDBTableName:
     Description: "Name of the DynamoDB table created by the nested stack"
-    Value: !GetAtt ReceiptsDynamoDBNestedStack.Outputs.TableName
+    Value: !GetAtt DynamoDB.Outputs.TableName
 
-  ReceiptsDynamoDBTableArn:
+  DynamoDBTableArn:
     Description: "ARN of the DynamoDB table created by the nested stack"
-    Value: !GetAtt ReceiptsDynamoDBNestedStack.Outputs.TableArn
+    Value: !GetAtt DynamoDB.Outputs.TableArn
+
+  KinesisStreamArn:
+    Description: "ARN of the Kinesis Data Stream created by the nested stack"
+    Value: !GetAtt KinesisStream.Outputs.KinesisStreamArn
 
   LambdaExecutionRoleArn:
     Description: "ARN of the Lambda execution role created by the nested stack"
-    Value: !GetAtt LambdaIAMRoleNestedStack.Outputs.RoleArn
+    Value: !GetAtt LambdaIAMRole.Outputs.RoleArn
 
   LambdaExecutionRoleName:
     Description: "Name of the Lambda execution role created by the nested stack"
-    Value: !GetAtt LambdaIAMRoleNestedStack.Outputs.RoleName
+    Value: !GetAtt LambdaIAMRole.Outputs.RoleName
   
   LambdaFunctionArn:
     Description: "ARN of the Lambda function created by the nested stack"
-    Value: !GetAtt LambdaFunctionNestedStack.Outputs.FunctionArn
+    Value: !GetAtt LambdaFunction.Outputs.FunctionArn
 
   ComputedLambdaFunctionName:
     Description: "Computed Lambda function name using project name, base name, environment, and region"
