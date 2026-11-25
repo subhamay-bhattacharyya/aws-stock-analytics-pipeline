@@ -386,6 +386,8 @@ Resources:
         IAMRoleArn: !GetAtt LambdaIAMRole.Outputs.RoleArn
         LambdaLogGroup: !Sub "/aws/lambda/${ProjectName}-${LambdaBaseName}-${Environment}-${AWS::Region}"
         DynamoDBTableName: !GetAtt DynamoDB.Outputs.TableName
+        CreateKinesisStream: "false"
+        KinesisStreamArn: !GetAtt KinesisStream.Outputs.KinesisStreamArn
         CiSuffix: !Ref CiSuffix
       Tags:
         - Key: Environment

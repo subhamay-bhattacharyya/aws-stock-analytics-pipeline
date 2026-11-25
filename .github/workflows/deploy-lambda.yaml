@@ -1,0 +1,68 @@
+name: Build and Deploy Lambda
+run-name: Deploy Lambda proj-ztc-image-labels-processor by ${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "The environment to deploy into"
+        required: true
+        type: environment
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  config:
+    name: Read environment variables
+    runs-on: ubuntu-26.04
+    environment: ${{ inputs.environment }}
+    outputs:
+      function_base_name: ${{ steps.read.outputs.function_base_name }}
+      function_name: ${{ steps.read.outputs.function_name }}
+      s3_bucket_name: ${{ steps.read.outputs.s3_bucket_name }}
+      aws_region: ${{ steps.read.outputs.aws_region }}
+      aws_account_id: ${{ steps.read.outputs.aws_account_id }}
+      aws_oidc_role_name: ${{ steps.read.outputs.aws_oidc_role_name }}
+      python_version: ${{ steps.read.outputs.python_version }}
+    steps:
+      - name: Read variables from environment
+        id: read
+        env:
+          FUNCTION_BASE_NAME: proj-ztc-image-labels-processor
+          AWS_ENVIRONMENT: ${{ vars.AWS_ENVIRONMENT }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          {
+            echo "function_base_name=${FUNCTION_BASE_NAME}"
+            echo "function_name=${FUNCTION_BASE_NAME}-${AWS_ENVIRONMENT}-${AWS_REGION}"
+            echo "s3_bucket_name=${{ vars.LAMBDA_PACKAGES_S3_BUCKET_NAME }}"
+            echo "aws_region=${AWS_REGION}"
+            echo "aws_account_id=${{ vars.AWS_ACCOUNT_ID }}"
+            echo "aws_oidc_role_name=${{ vars.AWS_OIDC_ROLE_NAME }}"
+            echo "python_version=${{ vars.PYTHON_VERSION }}"
+          } >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Build and deploy test-lambda
+    needs: config
+    uses: subhamay-bhattacharyya-gha/lambda-build-deploy-reusable-wf/.github/workflows/build-deploy-lambda.yaml@main
+    with:
+      function_base_name: ${{ needs.config.outputs.function_base_name }}
+      s3_bucket_name: ${{ needs.config.outputs.s3_bucket_name }}
+      aws_region: ${{ needs.config.outputs.aws_region }}
+      aws_account_id: ${{ needs.config.outputs.aws_account_id }}
+      aws_oidc_role_name: ${{ needs.config.outputs.aws_oidc_role_name }}
+      python_version: ${{ needs.config.outputs.python_version }}
+      functions_root: lambda/image-labels-processor
+      environment: ${{ inputs.environment }}
+      runner: ubuntu-26.04
+
+  summary:
+    name: Show deployed package
+    needs: deploy
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Print S3 URI
+        run: 'echo "Deployed package: ${{ needs.deploy.outputs.s3_uri }}"'

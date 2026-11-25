@@ -1,7 +1,7 @@
-# Real-time stock market data analytics pipeline built on AWS
+# Stock Market Real-Time Data Analytics Pipeline on AWS
 
 <!-- Row 1: Status - Most Important -->
-[![Release](https://img.shields.io/github/v/release/subhamay-bhattacharyya/aws-stock-analytics-pipeline?label=Release)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/releases)&nbsp;[![Release Workflow](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/actions/workflows/release.yaml/badge.svg)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/actions/workflows/release.yaml)&nbsp;[![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/issues)&nbsp;[![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/commits)
+[![Release](https://img.shields.io/github/v/release/subhamay-bhattacharyya/aws-stock-analytics-pipeline?label=Release)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/releases)&nbsp;[![Release Workflow](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/actions/workflows/ci.yaml/badge.svg)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/actions/workflows/ci.yaml)&nbsp;[![Issues](https://img.shields.io/github/issues/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/issues)&nbsp;[![Last Commit](https://img.shields.io/github/last-commit/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/commits)
 
 <!-- Row 2: Code Quality -->
 [![Top Language](https://img.shields.io/badge/Languages-Python%20%7C%20YAML-blue)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline)&nbsp;[![Commits](https://img.shields.io/github/commit-activity/t/subhamay-bhattacharyya/aws-stock-analytics-pipeline)](https://github.com/subhamay-bhattacharyya/aws-stock-analytics-pipeline/commits)
@@ -15,7 +15,13 @@
 <!-- Row 5: Custom Metrics -->
 [![Custom Endpoint](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/bsubhamay/07e4accbf35b23c2069188b1dd56e2b5/raw/aws-stock-analytics-pipeline.json?)](https://gist.github.com/bsubhamay/07e4accbf35b23c2069188b1dd56e2b5)
 
-Real-time stock market data analytics pipeline on AWS. Market data is streamed through Kinesis, processed by Lambda, stored in S3 and DynamoDB, queried with Athena, and turned into trend alerts with SNS.
+---
+
+## Overview
+
+An automated receipt processing pipeline that ingests receipt images/PDFs, extracts structured data using ML, and stores results with email notifications. Built entirely with Infrastructure-as-Code using CloudFormation nested stacks for modularity and reusability across environments.
+
+---
 
 ## Architecture
 
@@ -53,31 +59,118 @@ flowchart LR
     class PY,KDS,GLUE,ATH,S3RES,L2,SNS planned
 ```
 
-## Deployed Resources
+### Steps
 
-The root stack in [cloudformation/template.yaml](cloudformation/template.yaml) creates the following through nested stacks:
+1. The user uploads a receipt to S3.
+2. The S3 upload triggers the Lambda function.
+3. Lambda invokes Amazon Textract to extract data from the receipt.
+4. Textract returns structured data to Lambda.
+5. Lambda stores the processed data in the DynamoDB table.
+6. Lambda uses Amazon SES to send an email notification to the user.
 
-| Resource | Purpose |
-| --- | --- |
-| S3 bucket | Versioned storage, public access blocked, optional KMS encryption |
-| DynamoDB table (`Receipts`) | Keyed on `symbol` and `timestamp`, with streams and point-in-time recovery |
-| Lambda function | Python 3.12 processor, 256 MB, 60 s timeout |
-| Lambda execution role | IAM role with S3, DynamoDB, Textract, SES, KMS, and CloudWatch Logs access |
-| CloudWatch log group | Lambda logs, 14-day retention |
-| S3 invoke permission | Lets the bucket invoke the Lambda function |
+---
 
-The Lambda function is currently triggered by S3 uploads. The Kinesis trigger shown in the diagram is planned.
+## Features & Status
 
-## Deployment
+| Component | Purpose | Status |
+| --- | --- | --- |
+| **S3 Bucket** | Stores receipt images/PDFs with versioning & encryption | ✅ Complete |
+| **DynamoDB Table** | Stores extracted receipt metadata | ✅ Complete |
+| **Lambda Function** | Orchestrates receipt processing workflow | ✅ Complete |
+| **Textract Integration** | Extracts text/data from receipts | ✅ Complete |
+| **SES Notifications** | Sends email with extracted details | ✅ Complete |
+| **IAM Roles & Policies** | Cross-service permissions | ✅ Complete |
 
-The nested templates must be uploaded to the S3 bucket named by `NestedStacksS3BucketName` before deploying the root stack. Parameter defaults are in [cloudformation/parameters.json](cloudformation/parameters.json).
+---
 
-```bash
-aws cloudformation deploy \
-  --template-file cloudformation/template.yaml \
-  --stack-name aws-stock-analytics-pipeline-stack \
-  --capabilities CAPABILITY_NAMED_IAM
+## Project Structure
+
+``` text
+.
+├── .claude/
+│   └── .skills/                     # Custom skills (contribution, github-ci-workflow, package-json, readme-md)
+├── .devcontainer/
+│   └── devcontainer.json            # Dev container setup
+├── .env/
+│   └── environments.yaml            # Environment configuration
+├── .github/
+│   ├── workflows/
+│   │   ├── ci.yaml                  # Template validation & deployment
+│   │   ├── claude.yaml              # Claude Code integration
+│   │   ├── claude-code-review.yaml  # Claude Code review
+│   │   ├── create-branch.yaml       # Issue-based branch automation
+│   │   ├── deploy.yaml              # CloudFormation stack deployment
+│   │   ├── deploy-lambda.yaml       # Lambda build and deployment
+│   │   ├── delete.yaml              # CloudFormation stack deletion
+│   │   ├── notify.yaml              # Slack notifications
+│   │   └── setup-environments.yaml  # AWS environment setup
+│   ├── ISSUE_TEMPLATE/              # Bug report and feature request templates
+│   ├── CODEOWNERS                   # Repository ownership
+│   ├── dependabot.yaml              # Dependency updates
+│   └── PULL_REQUEST_TEMPLATE.md     # PR template
+├── cloudformation/
+│   ├── template.yaml                # Root CloudFormation stack
+│   ├── parameters.json              # Stack parameters
+│   └── stack-config.json            # Stack configuration
+├── lambda/
+│   └── receipt-processor/
+│       ├── lambda.py                # Lambda handler
+│       ├── requirements.txt         # Python dependencies
+│       └── structured_logging/      # Structured logging package
+├── scripts/
+│   └── plugins/                     # Semantic-release plugins
+├── .gitattributes                   # Git attribute settings
+├── .gitignore                       # Git ignore rules
+├── CLAUDE.md                        # Project guidelines
+├── CONTRIBUTING.md                  # Contribution guidelines
+├── CHANGELOG.md                     # Version history
+├── PROGRESS.md                      # Implementation tracking
+├── CODE_OF_CONDUCT.md               # Code of conduct
+├── LICENSE                          # MIT License
+└── README.md                        # This file
 ```
+
+---
+
+## Key Features
+
+### Infrastructure as Code
+
+- Nested CloudFormation stack pattern for modularity
+- Parameter-driven multi-environment configuration
+- Deterministic resource naming (ProjectName-Environment-AccountId-Region)
+
+### Security Best Practices
+
+- S3 versioning and public access blocking
+- KMS encryption for S3 and DynamoDB
+- DynamoDB point-in-time recovery
+- IAM least-privilege access patterns
+
+### CI/CD & Automation
+
+- GitHub Actions validation and deployment
+- AWS OIDC keyless authentication
+- Semantic versioning with conventional commits
+- Automated CloudFormation template validation
+
+---
+
+## Next Steps
+
+1. Create Lambda function CloudFormation template
+2. Integrate Amazon Textract for OCR
+3. Configure SES for email notifications
+4. Define IAM roles and cross-service policies
+5. Set up DynamoDB Streams to Lambda integration
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
 
 ## License
 
